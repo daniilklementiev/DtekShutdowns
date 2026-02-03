@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: dtek-monitor
+  cancel-in-progress: true
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -58,4 +62,5 @@ jobs:
 
           git add state.json last_run.txt
           git commit -m "Update DTEK state (scheduled)"
+          git pull --rebase
           git push

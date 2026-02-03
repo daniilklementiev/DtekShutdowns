@@ -207,8 +207,17 @@ def pick_from_autocomplete(page, input_selector: str, list_selector: str, query:
         chosen = 0
     items.nth(chosen).click()
 
+def fetch_outage_info(url: str, city: str, street: str, house: str):
+    last_err = None
+    for attempt in range(1, 4):
+        try:
+            return _fetch_outage_info_once(url, city, street, house)
+        except Exception as e:
+            last_err = e
+            print(f"[WARN] fetch attempt {attempt}/3 failed: {e}")
+    raise last_err
 
-def fetch_outage_info(url: str, city: str, street: str, house: str) -> Tuple[OutageInfo, str]:
+def _fetch_outage_info_once(url: str, city: str, street: str, house: str) -> Tuple[OutageInfo, str]:
     address_str = f"м. {city}, вул. {street}, {house}"
 
     with sync_playwright() as p:
@@ -345,12 +354,17 @@ def main():
     msg = format_message(info)
 
     if last_message_id:
-        edit_telegram(tg_token, tg_chat_id, int(last_message_id), msg)
-        print("[TG] edited")
-        message_id = int(last_message_id)
+        try:
+            edit_telegram(tg_token, tg_chat_id, int(last_message_id), msg)
+            print("[TG] edited")
+            message_id = int(last_message_id)
+        except Exception as e:
+            print(f"[WARN] edit failed, sending new: {e}")
+            message_id = send_telegram(tg_token, tg_chat_id, msg)
+            print("[TG] sent (new)")
     else:
         message_id = send_telegram(tg_token, tg_chat_id, msg)
-        print("[TG] sent (new)")
+        print("[TG] sent (new)")    
 
     save_state({
         "fingerprint": fp,
@@ -365,4 +379,20 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        msg = str(e).lower()
+        transient = any(x in msg for x in [
+            "antibot", "captcha", "access denied", "forbidden",
+            "timeout", "timed out", "net::", "navigation",
+            "request unsuccessful"
+        ])
+        print(f"[ERROR] {type(e).__name__}: {e}")
+
+        # Для временных/сетевых проблем не валим job
+        if transient:
+            raise SystemExit(0)
+
+        # Для прочих ошибок пусть падает (чтобы ты видел)
+        raise
