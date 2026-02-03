@@ -19,7 +19,6 @@ DISCLAIMER_MARKERS = [
     "Просимо перевірити інформацію через 15 хвилин",
 ]
 
-
 @dataclass
 class OutageInfo:
     address: str
@@ -140,8 +139,7 @@ def edit_telegram(token: str, chat_id: str, message_id: int, text: str) -> None:
 
 def format_message(info: OutageInfo) -> str:
     lines = [
-        "⚡️ Вимкнення світла",
-        f"Омєга",
+        "⚡️ Вимкнення світла в ЖК ""ОМЕГА"" ⚡️",
     ]
     if info.status_line:
         lines.append(info.status_line)
@@ -159,13 +157,11 @@ def format_message(info: OutageInfo) -> str:
     return "\n".join(lines)
 
 
-def format_restored_message(address: str, start_dt: Optional[str], restore_dt: Optional[str], restore_raw: Optional[str]) -> str:
+def format_restored_message(address: str, start_dt: Optional[str], restored_at: str) -> str:
     start_part = start_dt or "невідомо"
-    end_part = restore_dt or (restore_raw or "невідомо")
     return (
         "✅ Світло з’явилося.\n"
-        f"Адреса: {address}\n"
-        f"Світла не було: {start_part} — {end_part}"
+        f"Світла не було: {start_part} — {restored_at}"
     )
 
 
@@ -293,31 +289,31 @@ def main():
 
     info, body_text = fetch_outage_info(url, city, street, house)
 
-    # Определяем "нет отключения сейчас" (дисклеймер) или вообще нет времени
     no_outage_now = is_disclaimer_page(body_text) or (not info.start_dt and not info.restore_dt and not info.restore_raw)
 
-    # Если свет появился (раньше было отключение, а сейчас нет) — шлём отдельное уведомление
     if no_outage_now:
         last_start = prev.get("last_outage_start")
-        last_restore = prev.get("last_outage_restore")
-        last_restore_raw = prev.get("last_outage_restore_raw")
-
-        had_outage_before = bool(last_start or last_restore or last_restore_raw)
+        had_outage_before = bool(last_start or prev.get("last_outage_restore") or prev.get("last_outage_restore_raw"))
 
         if had_outage_before:
-            restored_msg = format_restored_message(info.address, last_start, last_restore, last_restore_raw)
+            # ФИКСИРУЕМ ФАКТИЧЕСКОЕ ВРЕМЯ ВОЗВРАТА ЭЛЕКТРИЧЕСТВА
+            restored_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S (UTC)")
+
+            restored_msg = format_restored_message(info.address, last_start, restored_at)
             send_telegram(tg_token, tg_chat_id, restored_msg)
             print("[TG] restored sent")
 
-            # очищаем outage-данные, чтобы не спамить на каждом запуске
             save_state({
                 "fingerprint": "NO_OUTAGE",
                 "payload": {"address": info.address, "status": "NO_OUTAGE"},
-                "message_id": last_message_id,  # оставим, чтобы следующее outage могло редактировать старое сообщение
+                "message_id": last_message_id,
                 "updated_at": datetime.utcnow().isoformat(),
                 "last_outage_start": None,
                 "last_outage_restore": None,
                 "last_outage_restore_raw": None,
+
+                # необязательно, но удобно для истории/отладки
+                "last_restored_at": restored_at,
             })
             print("[STATE] cleared outage")
         else:
