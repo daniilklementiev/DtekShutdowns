@@ -140,7 +140,7 @@ def edit_telegram(token: str, chat_id: str, message_id: int, text: str) -> None:
 
 def format_message(info: OutageInfo) -> str:
     lines = [
-        "⚡️ ДТЕК — зміна статусу",
+        "⚡️ Вимкнення світла",
         f"Омєга",
     ]
     if info.status_line:
