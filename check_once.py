@@ -86,7 +86,8 @@ def parse_outage_from_page_text(page_text: str, address: str) -> OutageInfo:
 
 
 def stable_payload(info: OutageInfo) -> Dict[str, Any]:
-    # Сравниваем ТОЛЬКО по времени начала/восстановления (+ restore_raw как fallback).
+    # Новое сообщение шлём только если меняются времена (start/restore),
+    # restore_raw оставляем как fallback, когда restore_dt не распарсился.
     return {
         "address": info.address,
         "start_dt": info.start_dt,
@@ -119,29 +120,9 @@ def send_telegram(token: str, chat_id: str, text: str) -> int:
     return int(data["result"]["message_id"])
 
 
-def edit_telegram(token: str, chat_id: str, message_id: int, text: str) -> None:
-    url = f"https://api.telegram.org/bot{token}/editMessageText"
-    r = requests.post(
-        url,
-        data={
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "text": text,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True
-        },
-        timeout=25,
-    )
-    r.raise_for_status()
-    data = r.json()
-    if not data.get("ok"):
-        raise RuntimeError(f"Telegram API error: {data}")
-
-
 def format_message(info: OutageInfo) -> str:
     lines = [
         "⚡️ Вимкнення світла",
-        f"Омєга",
     ]
     if info.status_line:
         lines.append(info.status_line)
@@ -154,8 +135,7 @@ def format_message(info: OutageInfo) -> str:
     elif info.restore_raw:
         lines.append(f"<b>Орієнтовне відновлення:</b> {info.restore_raw}")
 
-    # Важно: "Перевірено" НЕ участвует в fingerprint, поэтому не спамит.
-    lines.append(f"Перевірено: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} (UTC)")
+    # Убрано: "Перевірено: ..."
     return "\n".join(lines)
 
 
@@ -164,7 +144,6 @@ def format_restored_message(address: str, start_dt: Optional[str], restore_dt: O
     end_part = restore_dt or (restore_raw or "невідомо")
     return (
         "✅ Світло з’явилося.\n"
-        f"Адреса: {address}\n"
         f"Світла не було: {start_part} — {end_part}"
     )
 
@@ -207,6 +186,7 @@ def pick_from_autocomplete(page, input_selector: str, list_selector: str, query:
         chosen = 0
     items.nth(chosen).click()
 
+
 def fetch_outage_info(url: str, city: str, street: str, house: str):
     last_err = None
     for attempt in range(1, 4):
@@ -216,6 +196,7 @@ def fetch_outage_info(url: str, city: str, street: str, house: str):
             last_err = e
             print(f"[WARN] fetch attempt {attempt}/3 failed: {e}")
     raise last_err
+
 
 def _fetch_outage_info_once(url: str, city: str, street: str, house: str) -> Tuple[OutageInfo, str]:
     address_str = f"м. {city}, вул. {street}, {house}"
@@ -289,11 +270,10 @@ def main():
 
     prev = load_state()
     prev_fp = prev.get("fingerprint")
-    last_message_id = prev.get("message_id")
 
     info, body_text = fetch_outage_info(url, city, street, house)
 
-    # Определяем "нет отключения сейчас" (дисклеймер) или вообще нет времени
+    # "нет отключения сейчас" (дисклеймер) или вообще нет времени
     no_outage_now = is_disclaimer_page(body_text) or (not info.start_dt and not info.restore_dt and not info.restore_raw)
 
     # Если свет появился (раньше было отключение, а сейчас нет) — шлём отдельное уведомление
@@ -313,7 +293,6 @@ def main():
             save_state({
                 "fingerprint": "NO_OUTAGE",
                 "payload": {"address": info.address, "status": "NO_OUTAGE"},
-                "message_id": last_message_id,  # оставим, чтобы следующее outage могло редактировать старое сообщение
                 "updated_at": datetime.utcnow().isoformat(),
                 "last_outage_start": None,
                 "last_outage_restore": None,
@@ -324,7 +303,7 @@ def main():
             print("[OK] no outage (nothing to restore)")
         return
 
-    # Есть отключение — считаем fingerprint по временам
+    # Есть отключение — fingerprint по временам
     payload = stable_payload(info)
     fp = fingerprint(payload)
 
@@ -333,11 +312,11 @@ def main():
     print(f"fingerprint={fp}")
     print("=" * 80)
 
+    # первый запуск — сохраняем baseline и не шлём
     if prev_fp is None:
         save_state({
             "fingerprint": fp,
             "payload": payload,
-            "message_id": last_message_id,
             "updated_at": datetime.utcnow().isoformat(),
             "last_outage_start": info.start_dt,
             "last_outage_restore": info.restore_dt,
@@ -346,31 +325,20 @@ def main():
         print("[INIT] baseline saved")
         return
 
+    # если времена не поменялись — молчим
     if fp == prev_fp:
-        print("[OK] no changes")
+        print("[OK] no changes (times unchanged)")
         return
 
-    # Изменилось => редактируем прошлое сообщение (если было), иначе шлём новое
+    # времена поменялись => шлём НОВОЕ сообщение
     msg = format_message(info)
-
-    if last_message_id:
-        try:
-            edit_telegram(tg_token, tg_chat_id, int(last_message_id), msg)
-            print("[TG] edited")
-            message_id = int(last_message_id)
-        except Exception as e:
-            print(f"[WARN] edit failed, sending new: {e}")
-            message_id = send_telegram(tg_token, tg_chat_id, msg)
-            print("[TG] sent (new)")
-    else:
-        message_id = send_telegram(tg_token, tg_chat_id, msg)
-        print("[TG] sent (new)")    
+    send_telegram(tg_token, tg_chat_id, msg)
+    print("[TG] sent (new)")
 
     save_state({
         "fingerprint": fp,
         "payload": payload,
-        "message_id": message_id,
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now().isoformat(),
         "last_outage_start": info.start_dt,
         "last_outage_restore": info.restore_dt,
         "last_outage_restore_raw": info.restore_raw,
@@ -394,5 +362,4 @@ if __name__ == "__main__":
         if transient:
             raise SystemExit(0)
 
-        # Для прочих ошибок пусть падает (чтобы ты видел)
         raise
