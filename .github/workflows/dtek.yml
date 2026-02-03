@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -37,17 +39,24 @@ jobs:
           CITY: ${{ secrets.CITY }}
           STREET: ${{ secrets.STREET }}
           HOUSE: ${{ secrets.HOUSE }}
-          # DTEK_URL: ${{ secrets.DTEK_URL }}  # если нужно переопределить
+          # DTEK_URL: ${{ secrets.DTEK_URL }}
         run: python check_once.py
 
-      - name: Commit state.json if changed
+      # (Опционально, но очень полезно) — чтобы видеть, что cron реально работает:
+      - name: Stamp last run
+        run: |
+          date -u +"%Y-%m-%d %H:%M:%S UTC" > last_run.txt
+
+      - name: Commit state if changed
         run: |
           if git diff --quiet; then
             echo "No changes to commit"
             exit 0
           fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add state.json
-          git commit -m "Update DTEK state"
+
+          git add state.json last_run.txt
+          git commit -m "Update DTEK state (scheduled)"
           git push
