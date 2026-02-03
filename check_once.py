@@ -250,11 +250,6 @@ def main():
     if prev_fp is None:
         save_state({"fingerprint": fp, "payload": payload, "updated_at": datetime.utcnow().isoformat()})
         print("[INIT] baseline saved")
-
-        if send_on_init:
-            msg = format_message(info)
-            send_telegram(tg_token, tg_chat_id, msg)
-            print("[TG] sent on init")
         return
 
     if fp == prev_fp:
