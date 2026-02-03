@@ -1,14 +1,14 @@
 {
-  "fingerprint": "297205233dae3629ead150d41a2445667d1f13946d65898707eeb61aacec6466",
+  "fingerprint": "bca276e2eb1433c1146d0989e10a461be10fdf09ec5a404884dbb4e0092a71b4",
   "payload": {
     "address": "м. Одеса, вул. Краснова, 1",
-    "start_dt": "2026-02-03 10:04:00",
-    "restore_dt": "2026-02-03 17:04:00",
-    "restore_raw": "до 17:04 03.02.2026"
+    "start_dt": "2026-02-03 19:08:00",
+    "restore_dt": "2026-02-03 20:50:00",
+    "restore_raw": "до 20:50 03.02.2026"
   },
   "message_id": 19,
-  "updated_at": "2026-02-03T11:32:31.579975",
-  "last_outage_start": "2026-02-03 10:04:00",
-  "last_outage_restore": "2026-02-03 17:04:00",
-  "last_outage_restore_raw": "до 17:04 03.02.2026"
+  "updated_at": "2026-02-03T17:21:25.302875",
+  "last_outage_start": "2026-02-03 19:08:00",
+  "last_outage_restore": "2026-02-03 20:50:00",
+  "last_outage_restore_raw": "до 20:50 03.02.2026"
 }
