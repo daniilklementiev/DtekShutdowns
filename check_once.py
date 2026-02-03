@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import requests
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
@@ -36,7 +38,14 @@ def _parse_dt_from_ua(text: str) -> Optional[datetime]:
         return datetime.strptime(text, "%H:%M %d.%m.%Y")
     except ValueError:
         return None
-
+    
+def format_duration_ua(delta_seconds: int) -> str:
+    if delta_seconds < 0:
+        return ""
+    minutes_total = delta_seconds // 60
+    hours = minutes_total // 60
+    minutes = minutes_total % 60
+    return f"({hours} г {minutes} хв)"
 
 def parse_outage_from_page_text(page_text: str, address: str) -> OutageInfo:
     lines = [ln.strip() for ln in page_text.splitlines()]
@@ -157,11 +166,12 @@ def format_message(info: OutageInfo) -> str:
     return "\n".join(lines)
 
 
-def format_restored_message(address: str, start_dt: Optional[str], restored_at: str) -> str:
+def format_restored_message(address: str, start_dt: Optional[str], restored_at: str, duration_str: str) -> str:
     start_part = start_dt or "невідомо"
+    dur_part = f" {duration_str}" if duration_str else ""
     return (
         "✅ Світло з’явилося.\n"
-        f"Світла не було: {start_part} — {restored_at}"
+        f"Світла не було: {start_part} — {restored_at}{dur_part}"
     )
 
 
@@ -297,9 +307,24 @@ def main():
 
         if had_outage_before:
             # ФИКСИРУЕМ ФАКТИЧЕСКОЕ ВРЕМЯ ВОЗВРАТА ЭЛЕКТРИЧЕСТВА
-            restored_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S (UTC)")
+            restored_at_dt = datetime.now(timezone.utc)
+            restored_at = restored_at_dt.strftime("%Y-%m-%d %H:%M:%S (UTC)")
 
-            restored_msg = format_restored_message(info.address, last_start, restored_at)
+            duration_str = ""
+            if last_start:
+                try:
+                    # last_start зберігається як "YYYY-MM-DD HH:MM:SS" (naive)
+                    start_local_naive = datetime.fromisoformat(last_start)
+
+                    # Вважаємо, що час з DTEK = Europe/Kyiv
+                    start_utc = start_local_naive.replace(tzinfo=ZoneInfo("Europe/Kyiv")).astimezone(timezone.utc)
+
+                    delta_seconds = int((restored_at_dt - start_utc).total_seconds())
+                    duration_str = format_duration_ua(delta_seconds)
+                except Exception:
+                    duration_str = ""
+
+            restored_msg = format_restored_message(info.address, last_start, restored_at, duration_str)
             send_telegram(tg_token, tg_chat_id, restored_msg)
             print("[TG] restored sent")
 
