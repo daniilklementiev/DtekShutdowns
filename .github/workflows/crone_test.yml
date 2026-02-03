@@ -1,0 +1,11 @@
+name: CRON TEST
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "cron works at $(date -u)"
