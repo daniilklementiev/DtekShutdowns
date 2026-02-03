@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  SEND_ON_INIT: "true"
+
 jobs:
   run:
     runs-on: ubuntu-latest
