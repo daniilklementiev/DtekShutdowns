@@ -104,7 +104,12 @@ def send_telegram(token: str, chat_id: str, text: str) -> int:
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     r = requests.post(
         url,
-        data={"chat_id": chat_id, "text": text, "disable_web_page_preview": True},
+        data={
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
+        },
         timeout=25,
     )
     r.raise_for_status()
@@ -122,7 +127,8 @@ def edit_telegram(token: str, chat_id: str, message_id: int, text: str) -> None:
             "chat_id": chat_id,
             "message_id": message_id,
             "text": text,
-            "disable_web_page_preview": True,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
         },
         timeout=25,
     )
@@ -135,18 +141,18 @@ def edit_telegram(token: str, chat_id: str, message_id: int, text: str) -> None:
 def format_message(info: OutageInfo) -> str:
     lines = [
         "⚡️ ДТЕК — зміна статусу",
-        f"Адреса: {info.address}",
+        f"Омєга",
     ]
     if info.status_line:
         lines.append(info.status_line)
     if info.reason:
         lines.append(f"Причина: {info.reason}")
     if info.start_dt:
-        lines.append(f"Час початку: {info.start_dt}")
+        lines.append(f"<b>Час початку:</b> {info.start_dt}")
     if info.restore_dt:
-        lines.append(f"Орієнтовне відновлення: {info.restore_dt}")
+        lines.append(f"<b>Орієнтовне відновлення:</b> {info.restore_dt}")
     elif info.restore_raw:
-        lines.append(f"Орієнтовне відновлення: {info.restore_raw}")
+        lines.append(f"<b>Орієнтовне відновлення:</b> {info.restore_raw}")
 
     # Важно: "Перевірено" НЕ участвует в fingerprint, поэтому не спамит.
     lines.append(f"Перевірено: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} (UTC)")
