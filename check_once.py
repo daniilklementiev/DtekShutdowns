@@ -37,7 +37,6 @@ KYIV_TZ = ZoneInfo("Europe/Kyiv")
 def _parse_dt_from_ua(text: str) -> Optional[datetime]:
     text = text.strip()
     try:
-        # На сайті час локальний (Україна), тому одразу ставимо Europe/Kyiv
         dt_naive = datetime.strptime(text, "%H:%M %d.%m.%Y")
         return dt_naive.replace(tzinfo=KYIV_TZ)
     except ValueError:
@@ -48,7 +47,7 @@ def fmt_kyiv_iso(iso_str: str) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=KYIV_TZ)
     dt = dt.astimezone(KYIV_TZ)
-    return dt.strftime("%H:%M %d.%m.%Y")  # як на сайті
+    return dt.strftime("%H:%M %d.%m.%Y")
 
 
 def format_duration_ua(delta_seconds: int) -> str:
@@ -107,7 +106,6 @@ def parse_outage_from_page_text(page_text: str, address: str) -> OutageInfo:
 
 
 def stable_payload(info: OutageInfo) -> Dict[str, Any]:
-    # Сравниваем ТОЛЬКО по времени начала/восстановления (+ restore_raw как fallback).
     return {
         "address": info.address,
         "start_dt": info.start_dt,
@@ -155,7 +153,6 @@ def format_message(info: OutageInfo) -> str:
     elif info.restore_raw:
         lines.append(f"<b>Орієнтовне відновлення:</b> {fmt_kyiv_iso(info.restore_raw)}")
 
-    # Убрано: "Перевірено: ..." / "информация обновлена в"
     return "\n".join(lines)
 
 
@@ -308,7 +305,6 @@ def main():
                 try:
                     start_dt = datetime.fromisoformat(last_start)
 
-                    # Якщо раптом старий state був без tzinfo — вважай, що це Kyiv
                     if start_dt.tzinfo is None:
                         start_dt = start_dt.replace(tzinfo=KYIV_TZ)
 
@@ -335,7 +331,6 @@ def main():
             print("[OK] no outage (nothing to restore)")
         return
 
-    # Есть отключение — fingerprint по временам
     payload = stable_payload(info)
     fp = fingerprint(payload)
 
@@ -344,7 +339,6 @@ def main():
     print(f"fingerprint={fp}")
     print("=" * 80)
 
-    # первый запуск — baseline и молчим
     if prev_fp is None:
         save_state({
             "fingerprint": fp,
@@ -357,12 +351,10 @@ def main():
         print("[INIT] baseline saved")
         return
 
-    # если времена не поменялись — молчим
     if fp == prev_fp:
         print("[OK] no changes")
         return
 
-    # времена поменялись => шлём НОВОЕ сообщение (без редактирования)
     msg = format_message(info)
     send_telegram(tg_token, tg_chat_id, msg)
     print("[TG] sent (new)")
@@ -390,7 +382,6 @@ if __name__ == "__main__":
         ])
         print(f"[ERROR] {type(e).__name__}: {e}")
 
-        # Для временных/сетевых проблем не валим job
         if transient:
             raise SystemExit(0)
 
