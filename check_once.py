@@ -32,12 +32,23 @@ class OutageInfo:
     raw_block: Optional[str] = None
 
 
+KYIV_TZ = ZoneInfo("Europe/Kyiv")
+
 def _parse_dt_from_ua(text: str) -> Optional[datetime]:
     text = text.strip()
     try:
-        return datetime.strptime(text, "%H:%M %d.%m.%Y")
+        # На сайті час локальний (Україна), тому одразу ставимо Europe/Kyiv
+        dt_naive = datetime.strptime(text, "%H:%M %d.%m.%Y")
+        return dt_naive.replace(tzinfo=KYIV_TZ)
     except ValueError:
         return None
+    
+def fmt_kyiv_iso(iso_str: str) -> str:
+    dt = datetime.fromisoformat(iso_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=KYIV_TZ)
+    dt = dt.astimezone(KYIV_TZ)
+    return dt.strftime("%H:%M %d.%m.%Y")  # як на сайті
 
 
 def format_duration_ua(delta_seconds: int) -> str:
@@ -138,11 +149,11 @@ def format_message(info: OutageInfo) -> str:
     if info.reason:
         lines.append(f"Причина: {info.reason}")
     if info.start_dt:
-        lines.append(f"<b>Час початку:</b> {info.start_dt}")
+        lines.append(f"<b>Час початку:</b> {fmt_kyiv_iso(info.start_dt)}")
     if info.restore_dt:
-        lines.append(f"<b>Орієнтовне відновлення:</b> {info.restore_dt}")
+        lines.append(f"<b>Орієнтовне відновлення:</b> {fmt_kyiv_iso(info.restore_dt)}")
     elif info.restore_raw:
-        lines.append(f"<b>Орієнтовне відновлення:</b> {info.restore_raw}")
+        lines.append(f"<b>Орієнтовне відновлення:</b> {fmt_kyiv_iso(info.restore_raw)}")
 
     # Убрано: "Перевірено: ..." / "информация обновлена в"
     return "\n".join(lines)
@@ -289,15 +300,19 @@ def main():
         had_outage_before = bool(last_start or prev.get("last_outage_restore") or prev.get("last_outage_restore_raw"))
 
         if had_outage_before:
-            restored_at_dt = datetime.now(timezone.utc)
-            restored_at = restored_at_dt.strftime("%Y-%m-%d %H:%M:%S (UTC)")
+            restored_at_dt = datetime.now(KYIV_TZ)
+            restored_at = restored_at_dt.strftime("%Y-%m-%d %H:%M:%S (Europe/Kyiv)")
 
             duration_str = ""
             if last_start:
                 try:
-                    start_local_naive = datetime.fromisoformat(last_start)
-                    start_utc = start_local_naive.replace(tzinfo=ZoneInfo("Europe/Kyiv")).astimezone(timezone.utc)
-                    delta_seconds = int((restored_at_dt - start_utc).total_seconds())
+                    start_dt = datetime.fromisoformat(last_start)
+
+                    # Якщо раптом старий state був без tzinfo — вважай, що це Kyiv
+                    if start_dt.tzinfo is None:
+                        start_dt = start_dt.replace(tzinfo=KYIV_TZ)
+
+                    delta_seconds = int((restored_at_dt - start_dt.astimezone(KYIV_TZ)).total_seconds())
                     duration_str = format_duration_ua(delta_seconds)
                 except Exception:
                     duration_str = ""
