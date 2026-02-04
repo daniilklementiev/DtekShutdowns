@@ -42,13 +42,8 @@ def _parse_dt_from_ua(text: str) -> Optional[datetime]:
     except ValueError:
         return None
     
-def fmt_kyiv_iso(iso_str: str) -> str:
-    dt = datetime.fromisoformat(iso_str)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=KYIV_TZ)
-    dt = dt.astimezone(KYIV_TZ)
-    return dt.strftime("%H:%M %d.%m.%Y")
-
+def fmt_ua_dt(dt: datetime) -> str:
+    return dt.astimezone(KYIV_TZ).strftime("%d.%m.%Y %H:%M")
 
 def format_duration_ua(delta_seconds: int) -> str:
     if delta_seconds < 0:
@@ -91,7 +86,7 @@ def parse_outage_from_page_text(page_text: str, address: str) -> OutageInfo:
     if m:
         dt = _parse_dt_from_ua(m.group(1))
         if dt:
-            info.start_dt = dt.isoformat(sep=" ")
+            info.start_dt = fmt_ua_dt(dt)
 
     m = re.search(r"Орієнтовний\s+час\s+відновлення\s+електроенергії\s*[–-]\s*(.+)", page_text)
     if m:
@@ -100,7 +95,7 @@ def parse_outage_from_page_text(page_text: str, address: str) -> OutageInfo:
         if m2:
             dt2 = _parse_dt_from_ua(f"{m2.group(1)} {m2.group(2)}")
             if dt2:
-                info.restore_dt = dt2.isoformat(sep=" ")
+                info.restore_dt = fmt_ua_dt(dt2)
 
     return info
 
@@ -147,11 +142,11 @@ def format_message(info: OutageInfo) -> str:
     if info.reason:
         lines.append(f"Причина: {info.reason}")
     if info.start_dt:
-        lines.append(f"<b>Час початку:</b> {fmt_kyiv_iso(info.start_dt)}")
+        lines.append(f"<b>Час початку:</b> {info.start_dt}")
     if info.restore_dt:
-        lines.append(f"<b>Орієнтовне відновлення:</b> {fmt_kyiv_iso(info.restore_dt)}")
+        lines.append(f"<b>Орієнтовне відновлення:</b> {info.restore_dt}")
     elif info.restore_raw:
-        lines.append(f"<b>Орієнтовне відновлення:</b> {fmt_kyiv_iso(info.restore_raw)}")
+        lines.append(f"<b>Орієнтовне відновлення:</b> {info.restore_raw}")
 
     return "\n".join(lines)
 
@@ -298,7 +293,7 @@ def main():
 
         if had_outage_before:
             restored_at_dt = datetime.now(KYIV_TZ)
-            restored_at = restored_at_dt.strftime("%Y-%m-%d %H:%M:%S (Europe/Kyiv)")
+            restored_at = restored_at_dt.strftime("%Y-%m-%d %H:%M:%S")
 
             duration_str = ""
             if last_start:
