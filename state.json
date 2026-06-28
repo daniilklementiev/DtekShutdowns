@@ -1,13 +1,12 @@
 {
-  "fingerprint": "e6bcf4deaaae0afe1697fcfb1a4a09389910fa629a97d5a5415e05ac9b77894f",
+  "fingerprint": "NO_OUTAGE",
   "payload": {
     "address": "м. Одеса, вул. Краснова, 1",
-    "start_dt": "28.06.2026 13:23",
-    "restore_dt": "28.06.2026 20:23",
-    "restore_raw": "до 20:23 28.06.2026"
+    "status": "NO_OUTAGE"
   },
-  "updated_at": "2026-06-28T11:20:36.806287",
-  "last_outage_start": "28.06.2026 13:23",
-  "last_outage_restore": "28.06.2026 20:23",
-  "last_outage_restore_raw": "до 20:23 28.06.2026"
+  "updated_at": "2026-06-28T15:55:36.666584",
+  "last_outage_start": null,
+  "last_outage_restore": null,
+  "last_outage_restore_raw": null,
+  "last_restored_at": "2026-06-28 18:55:36"
 }
